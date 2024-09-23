@@ -15,13 +15,13 @@ def get_web(link):
     nurl = f'https://tw.linovelib.com{link}'
     resp = requests.get(url=nurl, headers=headers, cookies=cookies)
     if resp.status_code == 200:
-        with open('demo.html', 'w', encoding='utf-8')as f:
+        with open('scrape/bil_novel/demo.html', 'w', encoding='utf-8')as f:
             f.write(resp.text)
     return resp
 
 
-pdfmetrics.registerFont(TTFont('notoR', "font/NotoSansTC-Regular.ttf"))
-pdfmetrics.registerFont(TTFont('notoB', "font/NotoSansTC-Bold.ttf"))
+pdfmetrics.registerFont(TTFont('notoR', "static/NotoSansTC-Regular.ttf"))
+pdfmetrics.registerFont(TTFont('notoB', "static/NotoSansTC-Bold.ttf"))
 styles = getSampleStyleSheet()
 styleNormalCustom = ParagraphStyle(
     'styleNormalCustom', fontName='notoR', fontSize=10, leading=20)
@@ -59,37 +59,38 @@ headers = {
     'upgrade-insecure-requests': '1',
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
 }
-
-
 url = 'https://tw.linovelib.com/novel/3095/154931.html'
 resp = requests.get(url=url, headers=headers, cookies=cookies)
 print(resp.status_code)
 if resp.status_code == 200:
-    with open('demo.html', 'w', encoding='utf-8')as f:
+    with open('scrape/bil_novel/demo.html', 'w', encoding='utf-8')as f:
         f.write(resp.text)
+name = True
 expdir = ''
-for i in range(1, 10000):
+story = []
+for i in range(1, 1000000):
 
     soup = BeautifulSoup(resp.text, "html5lib")
-    try:
-        exp = soup.find('h3').get_text()
-        if exp != expdir:
-            try:
-                os.mkdir(f'episode/{exp}')
-            except:
-                pass
-            expdir = exp
-        title = soup.find('h1', id="atitle").get_text()
-        safe_title = re.sub(r'[<>:"/\\|?*]', '', title).strip()
-        text = soup.find('div', class_='acontent')
-    except:
-        break
+    if name:
+        try:
+            exp = soup.find('h3').get_text()
+            if exp != expdir:
+                try:
+                    os.mkdir(f'scrape/bil_novel/exp/{exp}')
+                except:
+                    pass
+                expdir = exp
+            title = soup.find('h1', id="atitle").get_text()
+            safe_title = re.sub(r'[<>:"/\\|?*]', '', title).strip()
+        except:
+            break
+
+        fileName = f"scrape/bil_novel/exp/{exp}/{f'{exp} {safe_title}'}.pdf"
+        pdfTemplate = SimpleDocTemplate(fileName, pagesize=A4)
+        name = False
+    text = soup.find('div', class_='acontent')
     for script in text(["script", "style", "center", "div"]):
         script.decompose()
-
-    fileName = f"episode/{exp}/{f'{exp} {safe_title}'}.pdf"
-    pdfTemplate = SimpleDocTemplate(fileName, pagesize=A4)
-    story = []
     a4_width, a4_height = A4
     page_width = a4_width
     page_height = a4_height
@@ -107,7 +108,7 @@ for i in range(1, 10000):
                 pic_url = i.get('data-src')
             pic_resp = requests.get(
                 url=pic_url, headers=header)
-            demo_path = f'pic/demo{time.time()}.jpg'
+            demo_path = f'scrape/bil_novel/pic/demo{time.time()}.jpg'
             image_path = demo_path
             with open(image_path, 'wb') as f:
                 f.write(pic_resp.content)
@@ -115,11 +116,8 @@ for i in range(1, 10000):
             try:
                 img = Image(demo_path)
                 img_width, img_height = img.wrap(0, 0)  # 獲取原始圖片大小
-                if img_width > page_width or img_height > page_height:
-                    scale_factor = max(img_width / page_width,
-                                       img_height / page_height)+1
-                    img.drawWidth = img_width / scale_factor
-                    img.drawHeight = img_height / scale_factor
+                img.preserveAspectRatio = True  # 保持寬高比
+                img._restrictSize(439.275, 685.889)
                 story.append(img)
                 story.append(PageBreak())
             except Exception as e:
@@ -128,15 +126,18 @@ for i in range(1, 10000):
         else:
             story.append(Paragraph(i.get_text(), styleNormalCustom))
 
-    pdfTemplate.build(story)
-    time.sleep(1.5)
+    time.sleep(1)
 
     ans = re.findall(
         'nextpage="(.*?)";', resp.text)[0]
     resp = get_web(ans)
+    if '_' not in ans:
+        pdfTemplate.build(story)
+        story = []
+        name = True
     print(ans)
 
 time.sleep(1)
-shutil.rmtree('pic')
+shutil.rmtree('scrape/bil_novel/pic')
 time.sleep(1)
-os.mkdir('pic')
+os.mkdir('scrape/bil_novel/pic')
